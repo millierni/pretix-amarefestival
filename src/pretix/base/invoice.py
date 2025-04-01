@@ -1,4 +1,4 @@
-#
+# MODIFIED 2025/04/01
 # This file is part of pretix (Community Edition).
 #
 # Copyright (C) 2014-2020 Raphael Michel and contributors
@@ -680,9 +680,9 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
             tdata = [(
                 Paragraph(self._normalize(pgettext('invoice', 'Description')), self.stylesheet['Bold']),
                 Paragraph(self._normalize(pgettext('invoice', 'Qty')), self.stylesheet['BoldRightNoSplit']),
-                Paragraph(self._normalize(pgettext('invoice', 'Tax rate')), self.stylesheet['BoldRightNoSplit']),
                 Paragraph(self._normalize(pgettext('invoice', 'Net')), self.stylesheet['BoldRightNoSplit']),
-                Paragraph(self._normalize(pgettext('invoice', 'Gross')), self.stylesheet['BoldRightNoSplit']),
+                Paragraph(self._normalize(pgettext('invoice', 'Fees')), self.stylesheet['BoldRightNoSplit']),
+                Paragraph(self._normalize(pgettext('invoice', 'Total')), self.stylesheet['BoldRightNoSplit']),
             )]
         else:
             tdata = [(
@@ -709,15 +709,17 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
                         gross_price=money_filter(gross_value, self.invoice.event.currency),
                     )
                     description = description + "\n" + single_price_line
+                fees = net_value * Decimal('0.03')
+                net_no_fees = net_value - fees
                 tdata.append((
                     Paragraph(
                         self._clean_text(description, tags=['br']),
                         self.stylesheet['Normal']
                     ),
                     str(len(lines)),
-                    localize(tax_rate) + " %",
+                    str(money_filter(net_no_fees, self.invoice.event.currency)),
+                    str(money_filter(fees, self.invoice.event.currency)),
                     Paragraph(money_filter(net_value * len(lines), self.invoice.event.currency).replace('\xa0', ' '), self.stylesheet['NormalRight']),
-                    Paragraph(money_filter(gross_value * len(lines), self.invoice.event.currency).replace('\xa0', ' '), self.stylesheet['NormalRight']),
                 ))
             else:
                 if len(lines) > 1:
@@ -738,6 +740,11 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
             total += gross_value * len(lines)
 
         if has_taxes:
+            total_tax = sum(taxvalue_map.values())
+            tdata.append([
+                Paragraph(self._normalize("TPS (5%) + TVQ (9.975%)"), self.stylesheet['Normal']), '', '', '',
+                money_filter(total_tax, self.invoice.event.currency)
+            ])
             tdata.append([
                 Paragraph(self._normalize(pgettext('invoice', 'Invoice total')), self.stylesheet['Bold']), '', '', '',
                 money_filter(total, self.invoice.event.currency)
@@ -831,9 +838,9 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
         ]
         thead = [
             Paragraph(self._normalize(pgettext('invoice', 'Tax rate')), self.stylesheet['Fineprint']),
-            Paragraph(self._normalize(pgettext('invoice', 'Net value')), self.stylesheet['FineprintRight']),
-            Paragraph(self._normalize(pgettext('invoice', 'Gross value')), self.stylesheet['FineprintRight']),
-            Paragraph(self._normalize(pgettext('invoice', 'Tax')), self.stylesheet['FineprintRight']),
+            Paragraph(self._normalize(pgettext('invoice', 'Tax value')), self.stylesheet['FineprintRight']),
+            '',
+            '',
             ''
         ]
         tdata = [thead]
@@ -844,10 +851,17 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
                 continue
             tax = taxvalue_map[idx]
             tdata.append([
-                Paragraph(self._normalize(localize(rate) + " % " + name), self.stylesheet['Fineprint']),
-                money_filter(gross - tax, self.invoice.event.currency),
-                money_filter(gross, self.invoice.event.currency),
-                money_filter(tax, self.invoice.event.currency),
+                Paragraph(self._normalize("TPS (5%) "), self.stylesheet['Fineprint']),
+                money_filter(tax * Decimal('0.3339'), self.invoice.event.currency),
+                '',
+                '',
+                ''
+            ])
+            tdata.append([
+                Paragraph(self._normalize("TVQ (9.975%) "), self.stylesheet['Fineprint']),
+                money_filter(tax * Decimal('0.6661'), self.invoice.event.currency),
+                '',
+                '',
                 ''
             ])
 
@@ -880,7 +894,7 @@ class ClassicInvoiceRenderer(BaseReportlabInvoiceRenderer):
                     net = gross - tax
 
                     tdata.append([
-                        Paragraph(self._normalize(localize(rate) + " % " + name), self.stylesheet['Fineprint']),
+                        Paragraph(self._normalize("14.975% " + name), self.stylesheet['Fineprint']),
                         fmt(net), fmt(gross), fmt(tax), ''
                     ])
 
